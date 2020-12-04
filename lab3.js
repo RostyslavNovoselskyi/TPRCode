@@ -1,182 +1,225 @@
-import './read_matrix';
+const Max = (array) => Math.max(...array);
+const max_index = (array) => array.reduce((acc, cur, index) => (cur === Max(array) ? [...acc, index] : acc), []);
 
-const matrix = read_matrix();
-const probabilities =  [0.5, 0.35, 0.15];
+const has_absolute_win = (candidate) => candidate > ((sum(votes) / 2) + 1);
+
+const grade = (num, size) => size - num - 1;
+
+const candidates = [
+    [1, 1, 3, 2, 3],
+    [2, 3, 2, 3, 1],
+    [3, 2, 1, 1, 2]
+];
+
+const votes = [24, 23, 26, 20, 16];
+
+
+const candidates_num = 3;
 
 show_results();
 
 function show_results() {
-    console.log("Назва критерію | Оптимальнi рiшення");
-    console.log("___________________________________")
+    console.log("Назва правила | Переможець");
+    console.log("___________________________________________________")
 
-    process.stdout.write("Ваальда        | ");
-    show_solutions(vaald_criteria());
+    // process.stdout.write("Відносна більшість                     | ");
+    // show_solutions(relative_most(candidates, false));
 
-    process.stdout.write("Гурвiца        | ");
-    show_solutions(gurwitz_criteria());
+    // process.stdout.write("Відносна більшість з вибуванням        | ");
+    // show_solutions(relative_most(candidates, true));
 
-    process.stdout.write("Байєса-Лапласа | ");
-    show_solutions(bayesa_laplasa_criteria());
+    process.stdout.write("Борда                                  | ");
+    show_solutions(borda(candidates));
 
-    process.stdout.write("Модальний      | ");
-    show_solutions(modal_criteria());
+    process.stdout.write("Кондорсе                               | ");
+    show_solutions(condorse(candidates));
+
+    // process.stdout.write("Копленда                               | ");
+    // show_solutions(coplend(candidates));
+
+    // process.stdout.write("Сімпсона                               | ");
+    // show_solutions(simpson(candidates));
+
 }
 
 function show_solutions(array) {
 
-    array.forEach((elem, ind) => {
-        if (ind == 0 && elem == 1)
-            process.stdout.write("1, ");
-        else if (ind == 0 && elem != 1) process.stdout.write("3, ");
-        process.stdout.write((1 + elem) + " ");
+    array.forEach((elem, i) => {
+        if (i == 0)
+            process.stdout.write("С");
     });
 
     console.log();
-    console.log("‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾");
+    console.log("‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾");
 }
 
-function vaald_criteria() {
-    var vaald_array = min_in_row();
 
-    return max_index(vaald_array);
+function relative_most(candids, is_absolute) {
+    let uppers = candids[0];
+    let upper_indices = [];
+    let results = [];
 
-}
+    for (let i = 0; i < candidates_num; i++) {
+        upper_indices[i] = new Array();
+    }
 
-function savage_criteria() {
-    var savage_array = max_in_row();
+    for (let i = 0; i < uppers.length; i++) {
+        upper_indices[uppers[i] - 1].push(i);
+    }
 
-    var max_differences_array = max_difference(savage_array);   
-    max_differences_array.forEach(console.log)
     
-    return min_index(max_differences_array);
-}
-
-function gurwitz_criteria() {
-    const alpha = 0.5;
-
-    var gurwitz_array = [];
-
-    var max_array = max_in_row();
-    var min_array = min_in_row();
-
-    for (var i = 0; i < max_array.length; i++) {
-        gurwitz_array.push(
-            (alpha * max_array[i]) + ((1 - alpha) * min_array[i])
-        );
+    for (let i = 0; i < candidates_num; i++) {
+        results[i] = votes_sum(upper_indices[i]);
     }
 
-    return max_index(gurwitz_array);
+    if (!is_absolute) {
+        return max_index(results);
+    }    else {
+        return max_index(second_tour_winner(results));
+    }
 }
 
+function second_tour_winner(first_tour_results) {
+    let winner = max_index(first_tour_results);
+    let second = max_index(first_tour_results);
+    first_tour_results.sort((a, b) => b - a);
+    let first_tour_winner = first_tour_results[0];
+    if(has_absolute_win(first_tour_winner)) {
+        return max_index(first_tour_results)[0];
+    } else {
+        return first_tour_winner > sum(votes) - first_tour_winner ?
+            winner : second;
+    }
+}
 
-function bayesa_laplasa_criteria() {
-    var row_sums_with_probabilities = [];
-    var sum = 0;
+function borda(candids) {
+    let results = new Array(candids.length).fill(0);
 
-    matrix.forEach((row) => {
-        for (var i = 0; i < row.length; i++) {
-            sum += row[i] * probabilities[i];
-        }
-        row_sums_with_probabilities.push(sum);
-        sum = 0;
+    candids.forEach((row, x) => {
+        row.forEach((elem, y) => {
+            results[elem - 1] += grade(x, candids.length) * votes[y];
+        });
     });
 
-    return max_index(row_sums_with_probabilities);
+    return max_index(results);
 }
 
-function modal_criteria() {
-    var most_likely_index = max_index(probabilities);
-    var most_likely_alternatives = [];
+function condorse(candids) {
+    let results = comparative_votes(candids);
 
-    matrix.forEach((row) => {
-        most_likely_alternatives
-        .push(row[most_likely_index]);
+    return condorse_winner(results);
+}
+
+function coplend(candids) {
+    let results = comparative_votes(candids);
+    let most = (sum(votes)) / 2;
+
+    results.forEach((row, i) => {
+        row.forEach((elem, j) => {
+            results[i][j] = elem > most ? 1 : -1;
+        });
     });
 
-    return max_index(most_likely_alternatives);
+    let sums = coplend_sums(results);
+
+    return new Array(1).fill(2);
 }
 
+function simpson(candids) {
+    let results = comparative_votes(candids);
 
+    let grades = [];
 
-function max_difference(array) {
-    var min_array = [];
-    var max_differences_array = [];
-    var counter = 0;
-
-    matrix.forEach((row) => {
-        min_array.push(min(row));
+    results.forEach((row) => {
+        grades.push(min(row));
     });
 
-    min_array.forEach((elem) => {
-        max_differences_array.push(array[counter] - elem);
-        counter++;
+    return new Array(1).fill(2);
+}
+
+function coplend_sums(results) {
+    let sums = [];
+    
+    results.forEach((row) => {
+        sums.push(sum(row));
     });
 
-    return max_differences_array;
+    return sums;
 }
 
-function max_index(array) {
-    var max_ = array[0];
-    var max_indices = [];
+function comparative_votes(candids) {
+    let results = new Array(5).fill(new Array(3).fill(0));
 
-    for (var i = 1; i < array.length; i++) {
-        if (array[i] > max_) {
-            max_ = array[i];
-        }
-    }
+    let transposed_candidates = transposed(candids);
 
-    for (var i = 0; i < array.length; i++) {
-        if (array[i] === max_) {
-            max_indices.push(i);
-        }
-    }
+    transposed_candidates.forEach((row, i) => {
+        row.forEach((_, j) => {
+            for (let ind = 0; ind < votes.length; ind++) {
+                let cand = transposed_candidates[i].indexOf((j + 1));
+                results[i][j] += votes[i] * is_greater(cand, transposed_candidates[ind].indexOf((j + 1)));
+            }
+        });
+    });
 
-    return max_indices;
+    return results;
 }
 
-function min_index(array) {
-    var min_ = array[0];
-    var min_indices = [];
+function condorse_winner(results) {
+    let winner_counter = 0;
+    let winners = [];
 
-    for (var i = 1; i < array.length; i++) {
-        if (array[i] < min_) {
-            min_ = array[i];
+    results.forEach((row, i) => {
+        for (let j = 0; j < row.length; j++) {
+            if (results[i][j] < results[j][i]) {
+                break;
+            } else {
+                winner_counter++;
+            }
         }
-    }
-
-    for (var i = 0; i < array.length; i++) {
-        if (array[i] === min_) {
-            min_indices.push(i);
+        if (winner_counter == 3) {
+            winners.push(i);
         }
-    }
+        winner_counter = 0;
+    });
 
-    return min_indices;
+    return (winners);
 }
 
-function max(array) {
-    return Math.max(...array);
+function is_greater(cand, j) {
+    return j > cand ? 1 : 0;
+}
+
+function transposed(matrix) {
+    return matrix[0].map((_, i) => matrix.map(row => row[i]));
 }
 
 function min(array) {
-    return Math.min(...array);
-}
+    let min = 100;
 
-function min_in_row() {
-    var min_array = [];
-
-    matrix.forEach((arr) => {
-         min_array.push(Math.min(...arr));
+    array.forEach((elem) => {
+        if (elem > 0)
+            min = elem >= min ? min : elem;
     });
 
-    return min_array;
+    return min;
 }
 
-function max_in_row() {
-    var max_array = [];
+function sum(array) {
+    let sum = 0;
+    for( let i = 0; i < array.length; i++ ){
+        sum += parseInt( array[i], 10 );
+    }
+    return sum;
+}
 
-    matrix.forEach((arr) => {
-        max_array.push(Math.max(...arr));
+
+
+function votes_sum(array) {
+    var result = 0;
+
+    array.forEach((elem) => {
+        result += votes[elem];
     });
 
-    return max_array;
+    return result;
 }
